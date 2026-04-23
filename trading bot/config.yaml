@@ -1,0 +1,133 @@
+# Trading bot configuration
+# All user-tunable parameters live here
+
+# --- Universe ---
+# Liquid US large-caps across sectors. With momentum ranking enabled (see
+# below), the bot only trades the top-K by Clenow momentum score each week,
+# so having a broader universe = better selection.
+symbols:
+  - AAPL
+  - MSFT
+  - NVDA
+  - GOOGL
+  - META
+  - AMZN
+  - TSLA
+  - AMD
+  - AVGO
+  - CRM
+  - JPM
+  - V
+  - MA
+  - HD
+  - COST
+  - UNH
+  - JNJ
+  - XOM
+  - CVX
+  - WMT
+  - SPY
+  - QQQ
+
+# Bar timeframe for strategy decisions (1Min, 5Min, 15Min, 1Hour, 1Day)
+# Backtests show DAILY + breakout is the robust combo for US equities.
+timeframe: 1Day
+
+# How often the engine polls (seconds). With 1Day bars, 5 min is plenty.
+poll_interval_seconds: 300
+
+# Which strategy to use: ma_crossover | rsi_mean_reversion | breakout | ensemble
+active_strategy: breakout
+
+# Strategy-specific parameters
+strategies:
+  ma_crossover:
+    fast_period: 20
+    slow_period: 50
+    trend_filter_period: 200
+  rsi_mean_reversion:
+    rsi_period: 14
+    oversold: 30
+    overbought: 70
+    trend_filter_period: 100
+  breakout:
+    lookback: 20
+    atr_period: 14
+    atr_buffer: 0.3
+    volume_mult: 1.3
+  ensemble:
+    min_agreement: 2
+
+# --- Risk management ---
+risk:
+  risk_per_trade_pct: 0.01
+  stop_loss_atr_mult: 2.0
+  take_profit_atr_mult: 6.0
+  max_open_positions: 5
+  max_position_pct: 0.20
+  max_daily_loss_pct: 0.03
+
+# --- Trailing stop (chandelier exit) ---
+trail:
+  enabled: true
+  atr_mult: 4.0
+  breakeven_r_mult: 1.5
+
+# --- Volatility targeting (position sizer) ---
+vol_target:
+  enabled: true
+  target_vol: 0.20
+  lookback_bars: 20
+
+# --- Regime / entry filters ---
+filters:
+  skip_session_edges: true
+  vol_regime_high_pct: 0.95
+  vol_regime_lookback: 100
+  sector_max_pct: 0.30
+
+# --- Market regime (SPY 200-SMA master switch) ---
+market_regime:
+  enabled: true
+  sma_period: 200
+  use_soft_score: false   # true = scale size down in weak regime; false = hard block
+
+# --- Momentum ranking (Clenow + 12-1 blend) ---
+# Rank universe by blended score: 0.5 * (annualized-log-slope × R²) +
+# 0.5 * (252-day return skipping last 21 bars). Only the top_k tradeable.
+#
+# Tier-1 bypass: the top_n_bypass names skip the breakout gate and enter on
+# "close > trend_sma_period-SMA" instead — this is Clenow's original entry.
+# Ranks (top_n_bypass+1 .. top_k) still require the configured strategy.
+# This is the key tuning for exposure in strong trend regimes.
+momentum:
+  enabled: true
+  lookback_bars: 90
+  top_k: 10
+  top_n_bypass: 10        # all top-K bypass breakout (pure Clenow)
+  trend_sma_period: 50
+  clenow_gap_threshold: 0.15   # skip stock if any 1-day move > 15% in last 90d
+  clenow_gap_lookback: 90
+  clenow_own_sma_period: 100   # symbol must be above its own 100-SMA
+  # Clenow-style regime exit: force-close a position if its close drops
+  # below its own 100-SMA. Complements (does not replace) the chandelier
+  # trail — triggers whichever is tighter on a given bar.
+  exit_below_own_sma: false
+
+# --- Protections (freqtrade-inspired) ---
+protections:
+  enabled: true
+  cooldown_hours: 48              # no re-entry on a symbol for 48h after exit
+  stoploss_guard_hours: 24        # window for portfolio-wide loss guard
+  stoploss_guard_max_losses: 3    # N losses in window triggers halt
+  stoploss_guard_halt_hours: 24   # halt duration
+  max_drawdown_pct: 0.08          # halt entries at 8% DD from peak
+  drawdown_resume_pct: 0.04       # resume when DD back within 4% of peak
+
+# Market hours filter (bot only acts during US regular hours)
+market_hours_only: true
+
+# Logging
+log_level: INFO
+log_file: logs/bot.log
+trades_db: data/trades.db
